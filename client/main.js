@@ -4,10 +4,19 @@ import React, { Component } from 'react'
 import { mount as Mount } from 'react-mounter'
 import { composeWithTracker as track } from 'react-komposer'
 
+let createClass = React.createClass
+
+Object.defineProperty(React, 'createClass', {
+  set: nextCreateClass => {
+    createClass = nextCreateClass
+  }
+})
+
+import { whyDidYouUpdate } from 'why-did-you-update'
+whyDidYouUpdate(React)
+
 import A from '/collections/a'
 import B from '/collections/b'
-
-const TestRV = new ReactiveVar({})
 
 class Hook extends Component {
   constructor({ willMount, didMount, willUnmount }) {
@@ -22,6 +31,25 @@ class Hook extends Component {
   }
 }
 
+const PageAFilter = props => {
+  const selector = _.mapValues(props.queryParams.selector, mapper) || {}
+  return <div>
+    <div><button className={selector.alt !== true && 'active'} onClick={() => {
+      FlowRouter.go('/', {}, {
+        selector: {},
+      })
+    }}>filter 1</button></div>
+
+    <div><button className={selector.alt && 'active'} onClick={() => {
+      FlowRouter.go('/', {
+        selector: { alt: true }
+      }, {
+        selector: { alt: true }
+      })
+    }}>filter 2</button></div>
+  </div>
+}
+
 const Layout = ({ template }) => <div>
   <nav>
     <a href='/'>Page A</a>
@@ -31,21 +59,20 @@ const Layout = ({ template }) => <div>
   {template()}
 </div>
 
-const PageA = track((props, onData) => {
+const PageA = ({ queryParams }) => <div>
+  <h3>a</h3>
+  <PageAFilter queryParams={queryParams} />
+  <PageAList queryParams= {queryParams} />
+</div>
+
+const PageAList = track((props, onData) => {
   console.log('trigger a container')
   console.time()
-  const selector = _.mapValues(props.queryParams.selector, v => {
-    if (v == 'true')
-      return true
-    else if (v == 'false')
-      return false
-    else
-      return v
-  }) || {}
+  const selector = _.mapValues(props.queryParams.selector, mapper) || {}
 
   const sub = Meteor.subscribe('pagea', selector)
   if (sub.ready()) {
-    const list = A.find(selector).fetch()
+    const list = A.find(selector, { limit: 20 }).fetch()
     console.log('trigger a ready')
     console.timeEnd()
     onData(null, { list, selector })
@@ -53,23 +80,11 @@ const PageA = track((props, onData) => {
     onData(null, null)
   }
 })(({ list, selector }) => <div>
-  <h3>a</h3>
-  <div><button className={selector.alt !== true && 'active'} onClick={() => {
-    FlowRouter.go('/', {}, {
-      selector: {},
-    })
-  }}>filter 1</button></div>
-
-  <div><button className={selector.alt && 'active'} onClick={() => {
-    FlowRouter.go('/', {
-      selector: { alt: true }
-    }, {
-      selector: { alt: true }
-    })
-  }}>filter 2</button></div>
-  {list.map(({ _id, title }) => <div key={_id}>
-    {title}
-  </div>)}
+  <div className='remove'>
+    {list.map(({ _id, title }) => <div key={_id}>
+      {title}
+    </div>)}
+  </div>
 </div>)
 
 const PageB = track((props, onData) => {
@@ -110,3 +125,12 @@ FlowRouter.route('/b', {
 })
 
 //
+
+function mapper (v) {
+  if (v == 'true')
+    return true
+  else if (v == 'false')
+    return false
+  else
+    return v
+}
