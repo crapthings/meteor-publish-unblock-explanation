@@ -34,6 +34,7 @@ Meteor.publish('pagec', function (selector) {
 })
 
 Meteor.startup(function () {
+  Meteor.users.remove({})
   A.remove({})
   B.remove({})
 
@@ -56,6 +57,14 @@ Meteor.startup(function () {
   A.batchInsert(a)
   A.batchInsert(alt)
   B.batchInsert(b)
+
+  Accounts.createUser({
+    username: 'demo',
+    password: 'demo',
+    profile: {
+      text: _.times(20000, n => faker.lorem.sentences()).join()
+    }
+  })
 
 })
 

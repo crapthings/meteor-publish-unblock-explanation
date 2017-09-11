@@ -11,6 +11,10 @@ import B from '/collections/b'
 
 window.reload = new ReactiveDict('reload')
 
+Accounts.onLogin(function () {
+  console.log(Meteor.user())
+})
+
 class Hook extends Component {
   constructor({ willMount, didMount, willUnmount }) {
     super()
