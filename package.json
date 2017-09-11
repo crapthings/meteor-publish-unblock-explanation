@@ -9,12 +9,11 @@
     "faker": "^4.1.0",
     "lodash": "^4.17.4",
     "meteor-node-stubs": "~0.2.4",
+    "moment": "^2.18.1",
     "react": "^15.6.1",
     "react-dom": "^15.6.1",
     "react-komposer": "^1.13.1",
-    "react-mounter": "^1.2.0"
-  },
-  "devDependencies": {
-    "why-did-you-update": "0.0.8"
+    "react-mounter": "^1.2.0",
+    "react-virtualized": "^9.9.0"
   }
 }

@@ -4,19 +4,12 @@ import React, { Component } from 'react'
 import { mount as Mount } from 'react-mounter'
 import { composeWithTracker as track } from 'react-komposer'
 
-let createClass = React.createClass
-
-Object.defineProperty(React, 'createClass', {
-  set: nextCreateClass => {
-    createClass = nextCreateClass
-  }
-})
-
-import { whyDidYouUpdate } from 'why-did-you-update'
-whyDidYouUpdate(React)
+import { List } from 'react-virtualized'
 
 import A from '/collections/a'
 import B from '/collections/b'
+
+window.reload = new ReactiveDict('reload')
 
 class Hook extends Component {
   constructor({ willMount, didMount, willUnmount }) {
@@ -30,6 +23,8 @@ class Hook extends Component {
     return null
   }
 }
+
+const subsCache = new SubsCache()
 
 const PageAFilter = props => {
   const selector = _.mapValues(props.queryParams.selector, mapper) || {}
@@ -50,12 +45,24 @@ const PageAFilter = props => {
   </div>
 }
 
+const NavTracker = (props, onData) => {
+  console.log(FlowRouter.current())
+  const path = FlowRouter.current().route.path
+  onData(null, { path })
+}
+
+const NavComponent = ({ path }) => <nav>
+  <a href='/' className={path == '/' ? 'active' : null}>Page A</a>
+  <span> | </span>
+  <a href='/b' className={path == '/b' ? 'active' : null}>Page B</a>
+  <span> | </span>
+  <a href='/c' className={path == '/c' ? 'active' : null}>Page C</a>
+</nav>
+
+const NavContainer = track(NavTracker)(NavComponent)
+
 const Layout = ({ template }) => <div>
-  <nav>
-    <a href='/'>Page A</a>
-    <span> | </span>
-    <a href='/b'>Page B</a>
-  </nav>
+  <NavContainer />
   {template()}
 </div>
 
@@ -70,12 +77,15 @@ const PageAList = track((props, onData) => {
   console.time()
   const selector = _.mapValues(props.queryParams.selector, mapper) || {}
 
+  // const sub = subsCache.subscribe('pagea', selector)
   const sub = Meteor.subscribe('pagea', selector)
   if (sub.ready()) {
-    const list = A.find(selector, { limit: 20 }).fetch()
-    console.log('trigger a ready')
-    console.timeEnd()
-    onData(null, { list, selector })
+    Meteor.defer(function() {
+      const list = A.find(selector, { sort: { createdAt: -1 } }).fetch()
+      console.log('trigger a ready')
+      console.timeEnd()
+      onData(null, { list, selector })
+    })
   } else {
     onData(null, null)
   }
@@ -90,13 +100,30 @@ const PageAList = track((props, onData) => {
 const PageB = track((props, onData) => {
   console.log('trigger b container')
   console.time()
-  const sub = Meteor.subscribe('pageb')
+  window.reload.get('pageb')
+  let isFirstTime = true
+
+
+  // const sub = Meteor.subscribe('pageb')
+  const sub = subsCache.subscribe('pageb')
+  props.time.get()
   if (sub.ready()) {
-    const list = B.find().fetch()
-    console.log('trigger b ready')
-    console.timeEnd()
-    TestRV.set({})
-    onData(null, { list })
+    const TestOB = B.find().observe({
+      added() {
+        if (isFirstTime) return
+        console.log(123)
+        props.time.set(new Date())
+      }
+    })
+    Meteor.defer(function () {
+      const _list = B.find({}, { sort: { createdAt: -1 } })
+      const list = _list.fetch()
+      console.log('trigger b ready')
+      console.timeEnd()
+      isFirstTime = false
+      onData(null, { list })
+    })
+
   } else {
     onData(null, null)
   }
@@ -106,6 +133,71 @@ const PageB = track((props, onData) => {
     {title}
   </div>)}
 </div>)
+
+//
+
+const PageCFilter = props => {
+  const selector = _.mapValues(props.queryParams.selector, mapper) || {}
+  return <div>
+    <div><button className={selector.alt !== true && 'active'} onClick={() => {
+      FlowRouter.go('/c', {}, {
+        selector: {},
+      })
+    }}>filter 1</button></div>
+
+    <div><button className={selector.alt && 'active'} onClick={() => {
+      FlowRouter.go('/c', {
+        selector: { alt: true }
+      }, {
+        selector: { alt: true }
+      })
+    }}>filter 2</button></div>
+  </div>
+}
+
+const PageCList = track((props, onData) => {
+  console.log('trigger c container')
+  console.time()
+  const selector = _.mapValues(props.queryParams.selector, mapper) || {}
+
+  const sub = subsCache.subscribe('pagea', selector)
+  // const sub = Meteor.subscribe('pagec', selector)
+  if (sub.ready()) {
+    Meteor.setTimeout(function () {
+      const list = A.find(selector, { sort: { createdAt: -1 } }).fetch()
+      console.log(list)
+      console.log('trigger c ready')
+      console.timeEnd()
+      onData(null, { list, selector })
+    }, 0)
+  } else {
+    onData(null, null)
+  }
+})(({ list, selector }, index) => {
+  return <div>
+    <List
+      width={640}
+      height={500}
+      rowCount={list.length}
+      rowHeight={50}
+      rowRenderer={({ key, index, isScrolling, isVisible, style }) => {
+        return (
+          <div key={key} style={style}>
+            {list[index].title}
+          </div>
+        )
+      }}
+    />
+  </div>
+})
+
+const PageC = ({ queryParams }) => <div>
+  <h3>c</h3>
+  <PageCFilter queryParams={queryParams} />
+  <PageCList queryParams= {queryParams} />
+</div>
+
+
 
 FlowRouter.route('/', {
   name: 'home',
@@ -118,8 +210,17 @@ FlowRouter.route('/', {
 
 FlowRouter.route('/b', {
   action() {
+    const time = new ReactiveVar()
     Mount(Layout, {
-      template: () => <PageB />
+      template: () => <PageB time={time} />
+    })
+  }
+})
+
+FlowRouter.route('/c', {
+  action(params, queryParams) {
+    Mount(Layout, {
+      template: () => <PageC queryParams={queryParams} />
     })
   }
 })

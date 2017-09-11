@@ -19,3 +19,5 @@ ecmascript@0.8.2              # Enable ECMAScript2015+ syntax in app code
 kadira:flow-router
 mikowals:batch-insert
 meteorhacks:unblock
+ccorcos:subs-cache
+reactive-dict
